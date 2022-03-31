@@ -1,0 +1,6 @@
+#<Generated data>
+CONT_NAME=vault_vault_1
+VAULT_SERVER_URL=http://10.0.0.8:8200
+VAULT_UNSEAL_KEY=ITbx6+5md00Y2YZ87bDb6qoUvKUxA1gO9cdyoFzv9Jg=
+VAULT_ROOT_TOKEN=hvs.sixvOdJ498SGPHz0q0IC1okw 
+#</Generated data>

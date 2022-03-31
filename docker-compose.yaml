@@ -1,0 +1,15 @@
+version: "3.7"
+
+services:
+  vault:
+    image: hashicorp/vault
+    restart: always
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - ./vault_logs:/vault/logs
+      - ./vault_file:/vault/file
+    ports:
+      - 8200:8200
+
+#::END::

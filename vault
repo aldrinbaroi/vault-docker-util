@@ -1,0 +1,110 @@
+#!/bin/bash 
+
+usage() {
+	cat <<- USAGE
+
+	Usage:
+
+	  vault-server start|suspend|stop
+
+	    start	start the server
+	    suspend	stop the server but don't remove the container
+	    stop	stop the server and remove the container
+
+	USAGE
+}
+
+get_host_ip() {
+	case "$OSTYPE" in
+		linux-gnu) ip route get 8.8.8.8  | awk '{print $7}' ;;
+		darwin*) ipconfig getifaddr $(route get 8.8.8.8 | awk '/interface: / {print $2; }') ;;
+		*) echo "Unsupported OS: $OSTYPE.  Unable to get host IP address" ;;
+	esac
+}
+
+vault_server_info() {
+	[[ ! -f vault-server.info ]] && \
+	echo "vault-server.info file not found. Server may not have been started. Aborting." && exit 1
+	source vault-server.info 
+	cat <<- SERVER_INFO
+
+	  Vault server info:
+
+	  Container  = $CONT_NAME
+	  Server URL = $VAULT_SERVER_URL
+	  Unseal key = $VAULT_UNSEAL_KEY
+	  Root token = $VAULT_ROOT_TOKEN
+	
+	SERVER_INFO
+}
+
+vault_server_start() {
+	echo ""
+	docker-compose up -d
+	(( $? )) && echo "Error starting Vault server." && exit 1
+	while : ; do
+		sleep 1
+		PS_OUTPUT=$(docker-compose ps)
+		(( $(echo "$PS_OUTPUT" | wc -l) <= 2 )) && continue
+		break
+	done
+	CONT_NAME=$(echo "$PS_OUTPUT" | awk '(NR>2) {print $1}')
+	while : ; do
+		sleep 1
+		CONT_LOGS=$(docker logs $CONT_NAME 2> /dev/null)
+		[[ -z ${CONT_LOGS// /} ]] && continue
+		VAULT_SERVER_URL=$(echo "$CONT_LOGS" | \
+			sed -n '/.*VAULT_ADDR.*/p' | awk '{print $3}' | sed -r  "s/.*'(.*)'.*/\1/" | \
+			sed -e 's/0.0.0.0/'$(get_host_ip)'/')
+		[[ -z ${VAULT_SERVER_URL// /} ]] && continue
+		VAULT_UNSEAL_KEY=$(echo "$CONT_LOGS" | sed -n '/.*Unseal Key:.*/p' | awk '{print $3}')
+		[[ -z ${VAULT_UNSEAL_KEY// /} ]] && continue
+		VAULT_ROOT_TOKEN=$(echo "$CONT_LOGS" | sed -n '/.*Root Token:.*/p' | awk '{print $3}')
+		[[ -z ${VAULT_ROOT_TOKEN// /} ]] && continue
+		break
+	done
+	cat <<- SERVER_INFO > vault-server.info
+	#<Generated data>
+	CONT_NAME=$CONT_NAME
+	VAULT_SERVER_URL=$VAULT_SERVER_URL
+	VAULT_UNSEAL_KEY=$VAULT_UNSEAL_KEY
+	VAULT_ROOT_TOKEN=$VAULT_ROOT_TOKEN 
+	#</Generated data>
+	SERVER_INFO
+	vault_server_info
+}
+
+vault_server_suspend() {
+	docker-compose stop
+}
+
+vault_server_stop() {
+	docker-compose down
+}
+
+vault_client_execute() {
+
+	[[ ! -f vault-server.info ]] && \
+	echo "vault-server.info file not found. Server may not have been started. Aborting." && exit 1
+	source vault-server.info 
+	docker run \
+	--rm \
+	--cap-add=IPC_LOCK \
+	-e VAULT_ADDR="${VAULT_SERVER_URL}" \
+	-e VAULT_TOKEN="${VAULT_ROOT_TOKEN}" \
+	hashicorp/vault \
+	vault $@
+}
+
+CMD=$1
+
+case $CMD in
+	start) vault_server_start ;;
+	suspend) vault_server_suspend ;;
+	stop) vault_server_stop ;;
+	info) vault_server_info ;;
+	help) usage ;;
+	*) vault_client_execute $@ ;;
+esac
+
+#::END::
