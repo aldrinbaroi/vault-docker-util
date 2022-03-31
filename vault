@@ -1,17 +1,20 @@
 #!/bin/bash 
 
-usage() {
-	cat <<- USAGE
+help() {
+	cat <<- HELPTEXT
 
 	Usage:
 
-	  vault-server start|suspend|stop
+	  vault-server start|suspend|stop|info|help|*
 
-	    start	start the server
-	    suspend	stop the server but don't remove the container
-	    stop	stop the server and remove the container
+	    start	Starts the Vault server 
+	    suspend	Stops the server but doesn't remove the container
+	    stop	Stops the server and removes the container
+	    info	Shows info about running Vault server
+	    help	Shows this help text
+	    *		Any Vault CLI commands to be executed
 
-	USAGE
+	HELPTEXT
 }
 
 get_host_ip() {
@@ -103,7 +106,7 @@ case $CMD in
 	suspend) vault_server_suspend ;;
 	stop) vault_server_stop ;;
 	info) vault_server_info ;;
-	help) usage ;;
+	help) help ;;
 	*) vault_client_execute $@ ;;
 esac
 
